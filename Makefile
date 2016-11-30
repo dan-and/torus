@@ -3,7 +3,6 @@ ifeq ($(origin VERSION), undefined)
 endif
 HOST_GOOS=$(shell go env GOOS)
 HOST_GOARCH=$(shell go env GOARCH)
-#HOST_GOARCH=386
 HOST_GOROOT=$(shell go env GOROOT)
 HOST_GOPATH=$(shell go env GOPATH)
 
