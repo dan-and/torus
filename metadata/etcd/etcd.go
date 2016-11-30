@@ -27,6 +27,7 @@ var clog = capnslog.NewPackageLogger("github.com/coreos/torus", "etcd")
 const (
 	KeyPrefix      = "/github.com/coreos/torus/"
 	peerTimeoutMax = 50 * time.Second
+	leaseTTL       = 30
 )
 
 var (
@@ -70,7 +71,13 @@ type Etcd struct {
 }
 
 func newEtcdMetadata(cfg torus.Config) (torus.MetadataService, error) {
-	uuid, err := metadata.MakeOrGetUUID(cfg.DataDir)
+	var uuid string
+	var err error
+	if cfg.DataDir == "" {
+		uuid = metadata.MakeUUID()
+	} else {
+		uuid, err = metadata.GetUUID(cfg.DataDir)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +94,9 @@ func newEtcdMetadata(cfg torus.Config) (torus.MetadataService, error) {
 		volumesCache: make(map[string]*models.Volume),
 		uuid:         uuid,
 	}
+	// We do this so that referring to e, you can either call the functions
+	// directly (with a nil context) or, create another reference using
+	// WithContext(), below.
 	e.etcdCtx.etcd = e
 	err = e.getGlobalMetadata()
 	if err != nil {
@@ -209,7 +219,7 @@ func (c *etcdCtx) GetPeers() (torus.PeerInfoList, error) {
 		err := p.Unmarshal(x.Value)
 		if err != nil {
 			// Intentionally ignore a peer that doesn't unmarshal properly.
-			clog.Errorf("peer at key %s didn't unmarshal correctly", string(x.Key))
+			clog.Errorf("peer at key %s didn't unmarshal correctly: %v", string(x.Key), err)
 			continue
 		}
 		if time.Since(time.Unix(0, p.LastSeen)) > peerTimeoutMax {
@@ -229,6 +239,7 @@ func (c *etcdCtx) GetPeers() (torus.PeerInfoList, error) {
 // between getting the data and setting the new value.
 type AtomicModifyFunc func(in []byte) (out []byte, data interface{}, err error)
 
+// TODO(barakmich): Perhaps make this an etcd client library function.
 func (c *etcdCtx) AtomicModifyKey(k []byte, f AtomicModifyFunc) (interface{}, error) {
 	key := string(k)
 	resp, err := c.etcd.Client.Get(c.getContext(), key)
@@ -310,10 +321,6 @@ func (c *etcdCtx) GetVolume(volume string) (*models.Volume, error) {
 	if err != nil {
 		return nil, err
 	}
-	if resp.More {
-		// What do?
-		return nil, errors.New("implement me")
-	}
 	if len(resp.Kvs) == 0 {
 		return nil, errors.New(fmt.Sprintf("etcd: volume %q not found", volume))
 
@@ -336,11 +343,24 @@ func (c *etcdCtx) GetVolume(volume string) (*models.Volume, error) {
 	return v, nil
 }
 
+func (c *etcdCtx) GetLockStatus(vid uint64) string {
+	resp, err := c.etcd.Client.Get(c.getContext(), MkKey("volumemeta", Uint64ToHex(uint64(vid)), "blocklock"))
+	if err != nil {
+		clog.Debugf("Failed to get lock status: %v", err)
+		return "unknown"
+	}
+	if len(resp.Kvs) == 0 {
+		return "free"
+	}
+	return "in-use"
+}
+
 func (c *etcdCtx) GetLease() (int64, error) {
-	resp, err := c.etcd.Client.Grant(c.getContext(), 30)
+	resp, err := c.etcd.Client.Grant(c.getContext(), leaseTTL)
 	if err != nil {
 		return 0, err
 	}
+	clog.Tracef("created new lease for %d, TTL %d", resp.ID, leaseTTL)
 	return int64(resp.ID), nil
 }
 

@@ -106,8 +106,6 @@ func (f *File) openWrite() error {
 	if f.writeOpen {
 		return nil
 	}
-	f.srv.writeableLock.RLock()
-	defer f.srv.writeableLock.RUnlock()
 	vid := VolumeID(f.volume.Id)
 	newINode, err := f.srv.MDS.CommitINodeIndex(vid)
 	if err != nil {
@@ -315,9 +313,8 @@ func (f *File) Close() error {
 	if f == nil {
 		return ErrInvalid
 	}
-	var err error
 	promOpenFiles.WithLabelValues(f.volume.Name).Dec()
-	return err
+	return nil
 }
 
 func (f *File) Truncate(size int64) error {

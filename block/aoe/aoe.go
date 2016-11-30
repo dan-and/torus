@@ -50,20 +50,9 @@ type ServerOptions struct {
 	Minor uint8
 }
 
-// DefaultServerOptions is the default ServerOptions configuration used
-// by NewServer when none is specified.
-var DefaultServerOptions = &ServerOptions{
-	Major: 1,
-	Minor: 1,
-}
-
 // NewServer creates a new Server which utilizes the specified block volume.
 // If options is nil, DefaultServerOptions will be used.
 func NewServer(b *block.BlockVolume, options *ServerOptions) (*Server, error) {
-	if options == nil {
-		options = DefaultServerOptions
-	}
-
 	f, err := b.OpenBlockFile()
 	if err != nil {
 		return nil, err
@@ -142,7 +131,7 @@ func (s *Server) Serve(iface *Interface) error {
 		}
 	}
 
-	clog.Tracef("beginning server loop on %+v", iface)
+	fmt.Printf("Attached to AoE device (%s, Major: %d, Minor: %d). Server loop begins ... \n", iface.Name, s.major, s.minor)
 
 	// Start goroutine to sync device at regular intervals, and halt when
 	// the Server's Close method is called.
@@ -190,10 +179,13 @@ func (s *Server) Serve(iface *Interface) error {
 			continue
 		}
 
-		clog.Debugf("recv %d %s %+v", n, addr, f.Header)
-		//clog.Debugf("recv arg %+v", f.Header.Arg)
+		clog.Tracef("recv: %d %s %+v", n, addr, f.Header)
+		clog.Tracef("recv arg: %+v", f.Header.Arg)
 
-		s.handleFrame(addr, iface, &f)
+		_, err = s.handleFrame(addr, iface, &f)
+		if err != nil {
+			clog.Errorf("failed to handle frame: %v", err)
+		}
 	}
 
 	return nil
@@ -242,7 +234,7 @@ func (s *Server) handleFrame(from net.Addr, iface *Interface, f *Frame) (int, er
 		return n, nil
 	case aoe.CommandQueryConfigInformation:
 		cfgarg := f.Header.Arg.(*aoe.ConfigArg)
-		clog.Debugf("cfgarg: %+v", cfgarg)
+		clog.Tracef("cfgarg: %+v", cfgarg)
 
 		switch cfgarg.Command {
 		case aoe.ConfigCommandRead:

@@ -52,6 +52,7 @@ type MetadataService interface {
 
 	CommitINodeIndex(VolumeID) (INodeID, error)
 	GetINodeIndex(VolumeID) (INodeID, error)
+	GetLockStatus(vid uint64) string
 }
 
 type DebugMetadataService interface {
@@ -61,7 +62,6 @@ type DebugMetadataService interface {
 type GlobalMetadata struct {
 	BlockSize        uint64
 	DefaultBlockSpec BlockLayerSpec
-	INodeReplication int
 }
 
 // CreateMetadataServiceFunc is the signature of a constructor used to create

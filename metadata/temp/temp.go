@@ -19,7 +19,7 @@ func init() {
 }
 
 type Server struct {
-	mut sync.Mutex
+	mut sync.RWMutex
 
 	inode map[torus.VolumeID]torus.INodeID
 	vol   torus.VolumeID
@@ -55,7 +55,6 @@ func NewServer() *Server {
 		global: torus.GlobalMetadata{
 			BlockSize:        256,
 			DefaultBlockSpec: blockset.MustParseBlockLayerSpec("crc,base"),
-			INodeReplication: 2,
 		},
 		ring:  r,
 		keys:  make(map[string]interface{}),
@@ -64,13 +63,9 @@ func NewServer() *Server {
 }
 
 func NewClient(cfg torus.Config, srv *Server) *Client {
-	uuid, err := metadata.MakeOrGetUUID("")
-	if err != nil {
-		return nil
-	}
 	return &Client{
 		cfg:  cfg,
-		uuid: uuid,
+		uuid: metadata.MakeUUID(),
 		srv:  srv,
 	}
 }
@@ -91,12 +86,13 @@ func (t *Client) UUID() string {
 	return t.uuid
 }
 
-func (t *Client) GetLease() (int64, error)     { return 1, nil }
-func (t *Client) RenewLease(lease int64) error { return nil }
+func (t *Client) GetLease() (int64, error)        { return 1, nil }
+func (t *Client) RenewLease(lease int64) error    { return nil }
+func (t *Client) GetLockStatus(vid uint64) string { return "" }
 
 func (t *Client) GetPeers() (torus.PeerInfoList, error) {
-	t.srv.mut.Lock()
-	defer t.srv.mut.Unlock()
+	t.srv.mut.RLock()
+	defer t.srv.mut.RUnlock()
 	peers := make(torus.PeerInfoList, len(t.srv.peers))
 	copy(peers, t.srv.peers)
 	return peers, nil
@@ -132,8 +128,8 @@ func (t *Client) CommitINodeIndex(vol torus.VolumeID) (torus.INodeID, error) {
 }
 
 func (t *Client) GetVolumes() ([]*models.Volume, torus.VolumeID, error) {
-	t.srv.mut.Lock()
-	defer t.srv.mut.Unlock()
+	t.srv.mut.RLock()
+	defer t.srv.mut.RUnlock()
 
 	var out []*models.Volume
 
@@ -150,8 +146,8 @@ func (t *Client) CreateVolume(volume *models.Volume) error {
 }
 
 func (t *Client) GetVolume(volume string) (*models.Volume, error) {
-	t.srv.mut.Lock()
-	defer t.srv.mut.Unlock()
+	t.srv.mut.RLock()
+	defer t.srv.mut.RUnlock()
 
 	if vol, ok := t.srv.volIndex[volume]; ok {
 		return vol, nil
@@ -160,8 +156,8 @@ func (t *Client) GetVolume(volume string) (*models.Volume, error) {
 }
 
 func (t *Client) GetRing() (torus.Ring, error) {
-	t.srv.mut.Lock()
-	defer t.srv.mut.Unlock()
+	t.srv.mut.RLock()
+	defer t.srv.mut.RUnlock()
 	return t.srv.ring, nil
 }
 
@@ -215,14 +211,14 @@ func (s *Server) SetRing(ring torus.Ring) error {
 }
 
 func (t *Client) GetINodeIndex(volume torus.VolumeID) (torus.INodeID, error) {
-	t.srv.mut.Lock()
-	defer t.srv.mut.Unlock()
+	t.srv.mut.RLock()
+	defer t.srv.mut.RUnlock()
 	return t.srv.inode[volume], nil
 }
 
 func (t *Client) GetINodeIndexes() (map[torus.VolumeID]torus.INodeID, error) {
-	t.srv.mut.Lock()
-	defer t.srv.mut.Unlock()
+	t.srv.mut.RLock()
+	defer t.srv.mut.RUnlock()
 	out := make(map[torus.VolumeID]torus.INodeID)
 	for k, v := range t.srv.inode {
 		out[k] = v

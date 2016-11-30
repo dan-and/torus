@@ -132,6 +132,9 @@ func parseJSONArg(s string) VolumeData {
 	if err != nil {
 		onErr(err)
 	}
+	if vol.VolumeName == "" {
+		onErr(errors.New("volume name is missing"))
+	}
 	if vol.FSType == "" {
 		vol.FSType = "ext4"
 	}
@@ -364,7 +367,7 @@ func writeResponse(resp Response) {
 		fmt.Println([]byte(err.Error()))
 		os.Exit(2)
 	}
-	fmt.Println(string(b))
+	fmt.Print(string(b))
 }
 
 func onErr(err error) {

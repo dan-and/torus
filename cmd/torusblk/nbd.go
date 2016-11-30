@@ -100,7 +100,7 @@ func nbdAction(cmd *cobra.Command, args []string) error {
 	defer f.Close()
 	err = connectNBD(srv, f, knownDev, closer)
 	if err != nil {
-		return fmt.Errorf("%s", err)
+		return err
 	}
 	return nil
 }
@@ -121,11 +121,10 @@ func connectNBD(srv *torus.Server, f *block.BlockFile, target string, closer cha
 		target = t
 	}
 
-	dev, err := handle.OpenDevice(target)
+	_, err := handle.OpenDevice(target)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Connected to", dev)
 
 	go func(n *nbd.NBD) {
 		<-closer
