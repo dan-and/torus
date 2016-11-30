@@ -3,6 +3,10 @@ ifeq ($(origin VERSION), undefined)
 endif
 HOST_GOOS=$(shell go env GOOS)
 HOST_GOARCH=$(shell go env GOARCH)
+#HOST_GOARCH=386
+HOST_GOROOT=$(shell go env GOROOT)
+HOST_GOPATH=$(shell go env GOPATH)
+
 REPOPATH = github.com/coreos/torus
 
 VERBOSE_1 := -v
@@ -57,11 +61,21 @@ vendor: tools/glide
 	./tools/glide install
 
 tools/glide:
-	@echo "Downloading glide"
-	mkdir -p tools
-	curl -L https://github.com/Masterminds/glide/releases/download/0.10.2/glide-0.10.2-$(HOST_GOOS)-$(HOST_GOARCH).tar.gz | tar -xz -C tools
-	mv tools/$(HOST_GOOS)-$(HOST_GOARCH)/glide tools/glide
-	rm -r tools/$(HOST_GOOS)-$(HOST_GOARCH)
+	@echo "Getting glide"
+	curl -s -f -L https://github.com/Masterminds/glide/releases/download/0.10.2/glide-0.10.2-$(HOST_GOOS)-$(HOST_GOARCH).tar.gz | tar -xz -C tools >/dev/null 2>&1 || /bin/echo
+ifneq ("","$(wildcard tools/$(HOST_GOOS)-$(HOST_GOARCH)/glide)")
+	@echo "download of glide successful"
+	mv tools/$(HOST_GOOS)-$(HOST_GOARCH)/glide tools/glide 
+	rm -r tools/$(HOST_GOOS)-$(HOST_GOARCH) 
+else
+	@echo "Download of glide was unsuccessful, trying to build glide" 
+	mkdir -p tools 
+	rm -fr "$(HOST_GOPATH)/src/github.com/Masterminds/glide" 
+	go get github.com/Masterminds/glide 
+	cd $(HOST_GOPATH)/src/github.com/Masterminds/glide && make build 
+	cp $(HOST_GOPATH)/src/github.com/Masterminds/glide/glide $(GOPATH)/src/$(REPOPATH)/tools/ 
+	rm -fr "$(HOST_GOPATH)/src/github.com/Masterminds/glide" 
+endif
 
 help:
 	@echo "Influential make variables"
