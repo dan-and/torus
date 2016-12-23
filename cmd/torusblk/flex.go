@@ -285,12 +285,14 @@ func mountAction(cmd *cobra.Command, args []string) {
 	// 		Device: mountdev,
 	// 	})
 	// }
-	os.MkdirAll(mountdir, os.ModeDir|0555)
+	if err := os.MkdirAll(mountdir, os.ModeDir|0555); err != nil {
+		onErr(err)
+	}
+
 	ex := exec.Command("mount", "-t", vol.FSType, "-o", flags, mountdev, mountdir)
 	_, err = ex.CombinedOutput()
 	if err != nil {
 		onErr(err)
-		os.Exit(1)
 	}
 	writeResponse(Response{
 		Status: "Success",
@@ -313,7 +315,6 @@ func unmountAction(cmd *cobra.Command, args []string) {
 	_, err := exec.Command("umount", mountdir).Output()
 	if err != nil {
 		onErr(err)
-		os.Exit(1)
 	}
 	writeResponse(Response{
 		Status: "Success",
